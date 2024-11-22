@@ -1,4 +1,4 @@
-# mirror modular resource
+# Viam data mirror modular resource
 
 This module implements the [rdk generic API](https://github.com/rdk/generic-api) in a mcvella:data:mirror model.
 With this model, you can set up a periodic sync of binary data from Viam's data management to machines running viam-server.
