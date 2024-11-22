@@ -11,6 +11,8 @@ If a "file_name" exists, it will be used to write the file on the target machine
 If "file_name" contains a path (e.g. "/path/to/file.jpg") then that path will be created in the target.
 If "file_name" does not exist, the file will be written with the ID of the binary data in data management plus an extension based on MIME type stored in data management.
 
+Also note that this module does not differentiate between files with the same "file_name", so if a file with am matching "file_name" exists on the target, it will assume it is the same file and not overwrite the file on the target.
+
 ## Build and run
 
 To use this module, follow the instructions to [add a module from the Viam Registry](https://docs.viam.com/registry/configure/#add-a-modular-resource-from-the-viam-registry) and select the `rdk:generic:mcvella:data:mirror` model from the [`mcvella:data:mirror` module](https://app.viam.com/module/rdk/mcvella:data:mirror).
