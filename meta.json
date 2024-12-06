@@ -6,7 +6,7 @@
   "description": "Mirror binary data from Viam data management to any machines running viam-server",
   "models": [
     {
-      "api": "api:service:generic",
+      "api": "rdk:service:generic",
       "model": "mcvella:data:mirror"
     }
   ],
