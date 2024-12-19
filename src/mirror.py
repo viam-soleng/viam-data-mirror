@@ -22,6 +22,7 @@ import asyncio
 from pathlib import Path
 import os
 import mimetypes
+import traceback
 
 LOGGER = getLogger(__name__)
 
@@ -80,8 +81,13 @@ class mirror(Generic, Reconfigurable):
         self.running = True
 
         while self.running:
-            await self.do_sync()
-            await asyncio.sleep(self.sync_frequency)
+            try:
+                await self.do_sync()
+                await asyncio.sleep(self.sync_frequency)
+            except Exception as e:
+                LOGGER.error(f'Error in sync loop: {e}')
+                LOGGER.error(traceback.print_exc())
+                await asyncio.sleep(1)
 
     async def do_sync(self):
         # first, get all files and paths current on machine so we 
