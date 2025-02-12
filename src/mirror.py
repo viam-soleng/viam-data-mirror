@@ -181,7 +181,7 @@ class mirror(Generic, Reconfigurable):
         except Exception as e:
             LOGGER.error(f"An unexpected error occurred: {e}")
     
-    # Removes empty directories recursively from bottom up
+    # Removes empty directories recursively from the bottom up
     def remove_empty_dirs(self, path):
         for dirpath, dirnames, filenames in os.walk(path, topdown=False):
             # Skip the root mirror directory
