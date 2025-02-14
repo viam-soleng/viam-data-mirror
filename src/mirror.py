@@ -2,7 +2,7 @@ from typing import ClassVar, Mapping, Sequence, Any, Dict, Optional, Tuple, Fina
 from typing_extensions import Self
 from typing import Final
 
-from viam.resource.types import RESOURCE_NAMESPACE_RDK, RESOURCE_TYPE_SERVICE, Subtype
+from viam.resource.types import RESOURCE_NAMESPACE_RDK, RESOURCE_TYPE_SERVICE
 
 from viam.module.types import Reconfigurable
 from viam.proto.app.robot import ComponentConfig
