@@ -145,6 +145,8 @@ class mirror(Generic, Reconfigurable):
                 if current_files[file]:
                     os.remove(file)
                     LOGGER.info(f"Deleted {file}")
+            # Clean up empty directories
+            self.remove_empty_dirs(self.mirror_path)
     
     async def viam_connect(self) -> ViamClient:
         dial_options = DialOptions.with_api_key( 
@@ -178,3 +180,16 @@ class mirror(Generic, Reconfigurable):
             LOGGER.error(f"An error occurred while writing the file: {e}")
         except Exception as e:
             LOGGER.error(f"An unexpected error occurred: {e}")
+    
+    # Removes empty directories recursively from the bottom up
+    def remove_empty_dirs(self, path):
+        for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+            # Skip the root mirror directory
+            if dirpath == self.mirror_path:
+                continue
+            try:
+                if not os.listdir(dirpath):
+                    os.rmdir(dirpath)
+                    LOGGER.info(f"Removed empty directory: {dirpath}")
+            except Exception as e:
+                LOGGER.error(f"Error removing directory {dirpath}: {e}")
