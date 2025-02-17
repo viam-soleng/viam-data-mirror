@@ -38,6 +38,7 @@ class mirror(Generic, Reconfigurable):
     mirror_path: str = str(Path.home()) + '/.viam/data_mirror'
     app_client: ViamClient
     sync_frequency: int = 60
+    protected_dirs: list = []
     running = False
     delete = False
 
@@ -69,6 +70,7 @@ class mirror(Generic, Reconfigurable):
         self.api_key_id = config.attributes.fields["app_api_key_id"].string_value or ''
         self.delete = config.attributes.fields["delete"].bool_value or False
         self.sync_frequency = config.attributes.fields["sync_frequency"].number_value or self.sync_frequency
+        self.protected_dirs = config.attributes.fields["protected_dirs"].list_value or []
         mirror_path = config.attributes.fields["mirror_path"].string_value or ''
         if mirror_path != "":
             self.mirror_path =   os.path.join(str(Path.home()) + '/.viam/', mirror_path)
@@ -187,6 +189,13 @@ class mirror(Generic, Reconfigurable):
             # Skip the root mirror directory
             if dirpath == self.mirror_path:
                 continue
+            
+            # Determine the directory's path relative to mirror_path
+            relative_dir = os.path.relpath(dirpath, self.mirror_path)
+            if relative_dir in self.protected_dirs:
+                LOGGER.debug(f"Skipping deletion for protected directory: {dirpath}")
+                continue
+
             try:
                 if not os.listdir(dirpath):
                     os.rmdir(dirpath)
