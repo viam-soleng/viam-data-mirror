@@ -59,3 +59,4 @@ The following attributes are available for `mcvella:data:mirror`:
 | `dataset_id` | string | Optional |  Data management dataset ID to filter on. |
 | `mirror_path` | string | Optional | Path on target machine to sync to, defaults to <home>/.viam/data_mirror. Requested path will be created relative to <home>/.viam/ |
 | `delete` | boolean | Optional |  If set to true, will delete files in mirror_path that do not exist in data management. |
+| `protected_dirs` | list | Optional |  Directory names, relative to `mirror path`, that should never be removed (even if empty). |
