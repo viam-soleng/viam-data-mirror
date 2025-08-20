@@ -28,7 +28,7 @@ LOGGER = getLogger(__name__)
 
 class mirror(Generic, Reconfigurable):
     
-    MODEL: ClassVar[Model] = Model(ModelFamily("mcvella", "data"), "mirror")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam-soleng", "data"), "mirror")
     
     viam_api_key: str
     viam_api_key_id: str

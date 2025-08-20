@@ -1,13 +1,13 @@
 {
   "$schema": "https://dl.viam.dev/module.schema.json",
-  "module_id": "mcvella:data-mirror",
+  "module_id": "viam-soleng:data-mirror",
   "visibility": "public",
-  "url": "https://github.com/mcvella/viam-data-mirror",
+  "url": "https://github.com/viam-soleng/viam-data-mirror",
   "description": "Mirror binary data from Viam data management to any machines running viam-server",
   "models": [
     {
       "api": "rdk:service:generic",
-      "model": "mcvella:data:mirror"
+      "model": "viam-soleng:data:mirror"
     }
   ],
   "entrypoint": "run.sh"

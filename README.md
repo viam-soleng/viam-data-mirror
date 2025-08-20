@@ -1,6 +1,6 @@
 # Viam data mirror modular resource
 
-This module implements the [rdk generic API](https://github.com/rdk/generic-api) in a mcvella:data:mirror model.
+This module implements the [rdk generic API](https://github.com/rdk/generic-api) in a viam-soleng:data:mirror model.
 With this model, you can set up a periodic sync of binary data from Viam's data management to machines running viam-server.
 
 For example, perhaps you have a set of images in Viam's data management that you'll be using as embeddings for computer vision on edge devices.
@@ -15,7 +15,7 @@ Also note that this module does not differentiate between files with the same "f
 
 ## Build and run
 
-To use this module, follow the instructions to [add a module from the Viam Registry](https://docs.viam.com/registry/configure/#add-a-modular-resource-from-the-viam-registry) and select the `rdk:generic:mcvella:data:mirror` model from the [`mcvella:data:mirror` module](https://app.viam.com/module/rdk/mcvella:data:mirror).
+To use this module, follow the instructions to [add a module from the Viam Registry](https://docs.viam.com/registry/configure/#add-a-modular-resource-from-the-viam-registry) and select the `rdk:generic:viam-soleng:data:mirror` model from the [`viam-soleng:data:mirror` module](https://app.viam.com/module/rdk/viam-soleng:data:mirror).
 
 ## Configure your data mirror
 
@@ -24,7 +24,7 @@ To use this module, follow the instructions to [add a module from the Viam Regis
 
 Navigate to the **Config** tab of your machine's page in [the Viam app](https://app.viam.com/).
 Click on the **Components** subtab and click **Create component**.
-Select the `generic` type, then select the `mcvella:data:mirror` model.
+Select the `generic` type, then select the `viam-soleng:data:mirror` model.
 Click **Add module**, then enter a name for your generic and click **Create**.
 
 On the new component panel, copy and paste the following attribute template into your generic’s **Attributes** box:
@@ -47,7 +47,7 @@ On the new component panel, copy and paste the following attribute template into
 
 ### Attributes
 
-The following attributes are available for `mcvella:data:mirror`:
+The following attributes are available for `viam-soleng:data:mirror`:
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
