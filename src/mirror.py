@@ -36,11 +36,14 @@ class mirror(Generic, Reconfigurable):
     tags: list =  []
     dataset_id: str = ""
     mirror_path: str = str(Path.home()) + '/.viam/data_mirror'
-    app_client: ViamClient
+    app_client: Optional[ViamClient] = None
     sync_frequency: int = 60
     protected_dirs: list = []
     running = False
     delete = False
+
+    consecutive_failures: int = 0
+    connection_retries: int = 3
 
     # Constructor
     @classmethod
@@ -62,7 +65,13 @@ class mirror(Generic, Reconfigurable):
 
     # Handles attribute reconfiguration
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
+
+        # Stop existing sync
         self.running = False
+        if hasattr(self, 'sync_task') and self.sync_task:
+            LOGGER.info(f"Cancelling existing sync task: {self.sync_task}")
+            self.sync_task.cancel()
+
         self.dataset_id = config.attributes.fields["dataset_id"].string_value or ""
         self.tags = config.attributes.fields["tags"].list_value or []
         self.labels = config.attributes.fields["labels"].list_value or []
@@ -74,24 +83,83 @@ class mirror(Generic, Reconfigurable):
         mirror_path = config.attributes.fields["mirror_path"].string_value or ''
         if mirror_path != "":
             self.mirror_path =   os.path.join(str(Path.home()) + '/.viam/', mirror_path)
-       
-        asyncio.ensure_future(self.sync_loop())
+        
+        # Start new sync task
+        self.sync_task = asyncio.ensure_future(self.sync_loop())
+        LOGGER.info(f"Started new sync task: {self.sync_task}")
         return
+    
+    async def ensure_connection(self) -> bool:
+        if self.app_client is not None:
+            # Check if data_client exists
+            try:
+                _ = self.app_client.data_client
+                return True
+            except Exception as e:
+                LOGGER.error(f"Connection test failed: {e}")
+                await self.close_connection()
+            
+        # Try to establish a new connection
+        for attempt in range(self.connection_retries):
+            try:
+                LOGGER.info(f"Attempting to connect (attempt {attempt + 1}/{self.connection_retries})...")
+                self.app_client = await self.viam_connect()
+                LOGGER.info("Connection established.")
+                return True
+            except Exception as e:
+                LOGGER.error(f"Connection attempt {attempt + 1} failed: {e}")
+                if attempt < self.connection_retries - 1:
+                    await asyncio.sleep(1)
+        
+        return False
+
+    async def close_connection(self):
+        if self.app_client:
+            try:
+                self.app_client.close()
+                LOGGER.info("Connection closed.")
+            except Exception as e:
+                LOGGER.error(f"Error closing connection: {e}")
+            finally:
+                self.app_client = None 
 
     async def sync_loop(self):
-        self.app_client: ViamClient = await self.viam_connect()
         self.running = True
+        self.consecutive_failures = 0
+        task_id = id(asyncio.current_task())
+        LOGGER.info(f"Starting new sync loop task: {task_id}")
+        
+        try:
+            while self.running:
+                try:
+                    # Ensure connection
+                    if not await self.ensure_connection():
+                        LOGGER.error("Failed to establish connection. Retrying...")
+                        await asyncio.sleep(5)
+                        continue
 
-        while self.running:
-            try:
-                await self.do_sync()
-                await asyncio.sleep(self.sync_frequency)
-            except Exception as e:
-                LOGGER.error(f'Error in sync loop: {e}')
-                LOGGER.error(traceback.print_exc())
-                await asyncio.sleep(1)
+                    await self.do_sync()
+                    # Reset on connection success
+                    self.consecutive_failures = 0
+                    await asyncio.sleep(self.sync_frequency)
+                except Exception as e:
+                    self.consecutive_failures += 1
+                    LOGGER.error(f'Error in sync loop (attempt {self.consecutive_failures}): {e}')
+                    LOGGER.error(traceback.print_exc())
+
+                    # Force reconnection on error
+                    await self.close_connection()
+                    
+                    # Exponential backoff (up to 60 seconds)
+                    delay = min(1 * (2 ** (self.consecutive_failures - 1)), 60)
+                    LOGGER.info(f"Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
+        finally:
+            LOGGER.info(f"Exiting sync loop task: {task_id}")
 
     async def do_sync(self):
+        if not self.app_client:
+            raise RuntimeError("No active connection")
         # first, get all files and paths current on machine so we 
         # can see if there are extra files that need to be removed
         current_files = {}
@@ -166,6 +234,8 @@ class mirror(Generic, Reconfigurable):
         ) -> Mapping[str, ValueTypes]:
         result = {}
 
+        return result
+
 
     def write_file(self, file_path, content):
         path = Path(file_path)
@@ -202,3 +272,13 @@ class mirror(Generic, Reconfigurable):
                     LOGGER.info(f"Removed empty directory: {dirpath}")
             except Exception as e:
                 LOGGER.error(f"Error removing directory {dirpath}: {e}")
+    
+    async def close(self):
+        self.running = False
+        if hasattr(self, 'sync_task') and self.sync_task:
+            self.sync_task.cancel()
+            try:
+                await self.sync_task
+            except asyncio.CancelledError:
+                pass
+        await self.close_connection()
