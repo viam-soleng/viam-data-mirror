@@ -116,7 +116,6 @@ class mirror(Generic, Reconfigurable):
                 self.app_client = None 
 
     async def sync_loop(self):
-        self.app_client: ViamClient = await self.viam_connect()
         self.running = True
         self.consecutive_failures = 0
 
