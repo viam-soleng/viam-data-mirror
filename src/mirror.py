@@ -116,7 +116,7 @@ class mirror(Generic, Reconfigurable):
     async def close_connection(self):
         if self.app_client:
             try:
-                await self.app_client.close()
+                self.app_client.close()
                 LOGGER.info("Connection closed.")
             except Exception as e:
                 LOGGER.error(f"Error closing connection: {e}")
