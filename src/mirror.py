@@ -65,7 +65,13 @@ class mirror(Generic, Reconfigurable):
 
     # Handles attribute reconfiguration
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
+
+        # Stop existing sync
         self.running = False
+        if hasattr(self, 'sync_task') and self.sync_task:
+            LOGGER.info(f"Cancelling existing sync task: {self.sync_task}")
+            self.sync_task.cancel()
+
         self.dataset_id = config.attributes.fields["dataset_id"].string_value or ""
         self.tags = config.attributes.fields["tags"].list_value or []
         self.labels = config.attributes.fields["labels"].list_value or []
@@ -77,8 +83,10 @@ class mirror(Generic, Reconfigurable):
         mirror_path = config.attributes.fields["mirror_path"].string_value or ''
         if mirror_path != "":
             self.mirror_path =   os.path.join(str(Path.home()) + '/.viam/', mirror_path)
-       
-        asyncio.ensure_future(self.sync_loop())
+        
+        # Start new sync task
+        self.sync_task = asyncio.ensure_future(self.sync_loop())
+        LOGGER.info(f"Started new sync task: {self.sync_task}")
         return
     
     async def ensure_connection(self) -> bool:
@@ -118,7 +126,8 @@ class mirror(Generic, Reconfigurable):
     async def sync_loop(self):
         self.running = True
         self.consecutive_failures = 0
-
+        task_id = id(asyncio.current_task())
+        LOGGER.info(f"Starting new sync loop task: {task_id}")
         while self.running:
             try:
                 # Ensure connection
@@ -143,6 +152,8 @@ class mirror(Generic, Reconfigurable):
                 delay = min(1 * (2 ** (self.consecutive_failures - 1)), 60)
                 LOGGER.info(f"Retrying in {delay} seconds...")
                 await asyncio.sleep(delay)
+            finally:
+                LOGGER.info(f"Exiting sync loop task: {task_id}")
 
     async def do_sync(self):
         if not self.app_client:
@@ -259,3 +270,13 @@ class mirror(Generic, Reconfigurable):
                     LOGGER.info(f"Removed empty directory: {dirpath}")
             except Exception as e:
                 LOGGER.error(f"Error removing directory {dirpath}: {e}")
+    
+    async def close(self):
+        self.running = False
+        if hasattr(self, 'sync_task') and self.sync_task:
+            self.sync_task.cancel()
+            try:
+                await self.sync_task
+            except asyncio.CancelledError:
+                pass
+            await self.close_connection()
