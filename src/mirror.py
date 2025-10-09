@@ -128,32 +128,34 @@ class mirror(Generic, Reconfigurable):
         self.consecutive_failures = 0
         task_id = id(asyncio.current_task())
         LOGGER.info(f"Starting new sync loop task: {task_id}")
-        while self.running:
-            try:
-                # Ensure connection
-                if not await self.ensure_connection():
-                    LOGGER.error("Failed to establish connection. Retrying...")
-                    await asyncio.sleep(5)
-                    continue
+        
+        try:
+            while self.running:
+                try:
+                    # Ensure connection
+                    if not await self.ensure_connection():
+                        LOGGER.error("Failed to establish connection. Retrying...")
+                        await asyncio.sleep(5)
+                        continue
 
-                await self.do_sync()
-                # Reset on connection success
-                self.consecutive_failures = 0
-                await asyncio.sleep(self.sync_frequency)
-            except Exception as e:
-                self.consecutive_failures += 1
-                LOGGER.error(f'Error in sync loop (attempt {self.consecutive_failures}): {e}')
-                LOGGER.error(traceback.print_exc())
+                    await self.do_sync()
+                    # Reset on connection success
+                    self.consecutive_failures = 0
+                    await asyncio.sleep(self.sync_frequency)
+                except Exception as e:
+                    self.consecutive_failures += 1
+                    LOGGER.error(f'Error in sync loop (attempt {self.consecutive_failures}): {e}')
+                    LOGGER.error(traceback.print_exc())
 
-                # Force reconnection on error
-                await self.close_connection()
-                
-                # Exponential backoff (up to 60 seconds)
-                delay = min(1 * (2 ** (self.consecutive_failures - 1)), 60)
-                LOGGER.info(f"Retrying in {delay} seconds...")
-                await asyncio.sleep(delay)
-            finally:
-                LOGGER.info(f"Exiting sync loop task: {task_id}")
+                    # Force reconnection on error
+                    await self.close_connection()
+                    
+                    # Exponential backoff (up to 60 seconds)
+                    delay = min(1 * (2 ** (self.consecutive_failures - 1)), 60)
+                    LOGGER.info(f"Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
+        finally:
+            LOGGER.info(f"Exiting sync loop task: {task_id}")
 
     async def do_sync(self):
         if not self.app_client:
@@ -279,4 +281,4 @@ class mirror(Generic, Reconfigurable):
                 await self.sync_task
             except asyncio.CancelledError:
                 pass
-            await self.close_connection()
+        await self.close_connection()
