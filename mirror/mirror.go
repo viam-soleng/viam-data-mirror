@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.viam.com/rdk/app"
@@ -25,6 +26,9 @@ var Model = resource.NewModel("viam-soleng", "data", "mirror")
 const (
 	defaultSyncFrequency = 60 * time.Second
 	connectionRetries    = 3
+
+	// Preserve 5% of the filesystem. Do not allow this module to fill the drive.
+	minFreeFraction = 0.05
 )
 
 func init() {
@@ -285,7 +289,13 @@ func (m *mirror) doSync(ctx context.Context) error {
 		filter.BboxLabels = m.labels
 	}
 
+	// spaceExhausted is set when a download would breach the free-space reserve.
+	// It stops the cycle early and suppresses the delete pass, since currentFiles
+	// is then incomplete and cannot be trusted to identify extras.
+	spaceExhausted := false
+
 	last := ""
+pagingLoop:
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -328,14 +338,32 @@ func (m *mirror) doSync(ctx context.Context) error {
 				m.logger.Warnf("no binary data returned for %s, skipping", id)
 				continue
 			}
-			m.writeFile(file, withData[0].Binary)
+
+			content := withData[0].Binary
+			room, err := m.hasRoomFor(int64(len(content)))
+			if err != nil {
+				return fmt.Errorf("failed to check free space on %s before writing %s: %w", m.mirrorPath, file, err)
+			}
+			if !room {
+				if m.fileCanNeverFit(int64(len(content))) {
+					m.logger.Errorf("%s (%d bytes) can never fit while preserving %.0f%% free space; skipping",
+						file, len(content), minFreeFraction*100)
+					continue
+				}
+				m.logger.Warnf("Pausing sync: writing %s (%d bytes) would drop free space below %.0f%%",
+					file, len(content), minFreeFraction*100)
+				spaceExhausted = true
+				break pagingLoop
+			}
+
+			m.writeFile(file, content)
 			currentFiles[file] = false
 		}
 
 		last = resp.Last
 	}
 
-	if m.delete {
+	if m.delete && !spaceExhausted {
 		for file, extra := range currentFiles {
 			if extra {
 				if err := os.Remove(file); err != nil {
@@ -365,6 +393,33 @@ func fileNameFor(meta *app.BinaryMetadata) string {
 		}
 	}
 	return meta.ID + ext
+}
+
+// hasRoomFor reports whether writing nBytes would still leave at least
+// minFreeFraction of total capacity free on the filesystem backing mirrorPath.
+func (m *mirror) hasRoomFor(nBytes int64) (bool, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(m.mirrorPath, &st); err != nil {
+		return false, err
+	}
+	bsize := int64(st.Bsize)
+	total := int64(st.Blocks) * bsize
+	avail := int64(st.Bavail) * bsize // space available to non-root users
+	reserve := int64(float64(total) * minFreeFraction)
+	return avail-nBytes >= reserve, nil
+}
+
+// fileCanNeverFit reports whether nBytes exceeds the usable capacity of the
+// filesystem (total minus the reserve), i.e. it could not be written even on an
+// otherwise empty disk. Such a file would otherwise pause every sync cycle.
+func (m *mirror) fileCanNeverFit(nBytes int64) bool {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(m.mirrorPath, &st); err != nil {
+		return false
+	}
+	total := int64(st.Blocks) * int64(st.Bsize)
+	reserve := int64(float64(total) * minFreeFraction)
+	return nBytes > total-reserve
 }
 
 // writeFile writes content to file_path, creating parent directories as needed.
