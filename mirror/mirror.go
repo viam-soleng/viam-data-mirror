@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -115,9 +116,19 @@ func (m *mirror) reconfigure(conf resource.Config) error {
 		return fmt.Errorf("could not determine home directory: %w", err)
 	}
 
-	mirrorPath := filepath.Join(home, ".viam", "data_mirror")
+	// Confine the mirror to ~/.viam. filepath.Join cleans ".." segments, so a
+	// mirror_path like "../../tmp/x" would otherwise resolve outside the sandbox —
+	// dangerous once delete + removeEmptyDirs start pruning that tree. Reject any
+	// path that escapes ~/.viam after cleaning rather than trusting the join.
+	viamDir := filepath.Join(home, ".viam")
+	mirrorPath := filepath.Join(viamDir, "data_mirror")
 	if cfg.MirrorPath != "" {
-		mirrorPath = filepath.Join(home, ".viam", cfg.MirrorPath)
+		candidate := filepath.Join(viamDir, cfg.MirrorPath)
+		rel, err := filepath.Rel(viamDir, candidate)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("mirror_path %q escapes %s", cfg.MirrorPath, viamDir)
+		}
+		mirrorPath = candidate
 	}
 
 	syncFrequency := defaultSyncFrequency
@@ -332,7 +343,14 @@ pagingLoop:
 			}
 			withData, err := data.BinaryDataByIDs(ctx, []string{id})
 			if err != nil {
-				return fmt.Errorf("error fetching binary data for %s: %w", id, err)
+				// Skip a bad ID rather than aborting: returning would re-page from
+				// the top every cycle and wedge on the same item. Bail only on
+				// cancellation.
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				m.logger.Errorf("error fetching binary data for %s, skipping: %s", id, err)
+				continue
 			}
 			if len(withData) == 0 {
 				m.logger.Warnf("no binary data returned for %s, skipping", id)

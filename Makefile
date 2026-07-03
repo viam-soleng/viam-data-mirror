@@ -47,7 +47,7 @@ setup:
 clean:
 	rm -rf bin module.tar.gz
 
-VERSION ?= 0.0.1
+VERSION ?= 0.3.0
 
 # Build every arch, then print the upload commands. Override the version with
 # e.g. `make upload VERSION=1.2.3`.
